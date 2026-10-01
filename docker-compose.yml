@@ -1,0 +1,40 @@
+services:
+  # 1) MLflow tracking server + model registry
+  mlflow:
+    image: anujkrpathak/mlops:latest
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+      --allowed-hosts "*"
+    ports:
+      - "5000:5000"          # EC2 security group mein sirf My IP ko allow karo
+    volumes:
+      - mlflow-data:/mlflow
+    restart: unless-stopped
+
+  # 2) Prediction API + website
+  app:
+    build: .
+    image: anujkrpathak/mlops:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING=http://mlflow:5000
+    depends_on:
+      - mlflow
+    restart: unless-stopped
+
+  # 3) Training job (sirf jab chalao tab chalta hai):
+  #    docker compose run --rm trainer
+  trainer:
+    image: anujkrpathak/mlops:latest
+    command: python train.py
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    profiles: ["train"]
+
+volumes:
+  mlflow-data:
